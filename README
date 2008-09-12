@@ -1,0 +1,5 @@
+Serverside, for example Apache2:
+ CustomLog "|/etc/apache2/server /tmp/access.log.sock" combined
+
+Clientside, after apache reload:
+ ./client /tmp/access.log.sock

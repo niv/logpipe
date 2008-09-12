@@ -1,0 +1,40 @@
+#!/usr/bin/ruby
+
+require 'socket'
+
+$log = ARGV.shift or fail "Specify the intended log socket as the only argument."
+
+$clients = []
+
+Thread.abort_on_exception = true
+
+if FileTest.exists?($log)
+  $stderr.puts "WARN: target log socket exists."
+  File.unlink($log)
+end
+
+$server = UNIXServer.new($log)
+File.chmod(0700, $log)
+
+trap "INT", proc {
+  File.unlink($log)
+  exit(0)
+}
+
+Thread.new {
+  loop do
+    $clients << $server.accept
+  end
+}
+
+while s = $stdin.gets do
+  s.strip!
+  $clients.each {|c|
+    begin
+      c.puts(s)
+    rescue => e
+      $clients.delete(c)
+      next
+    end
+  }
+end

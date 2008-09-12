@@ -1,0 +1,11 @@
+#!/usr/bin/ruby
+
+require 'socket'
+
+$log = ARGV.shift or fail "Specify the intended log socket as the only argument."
+
+$client = UNIXSocket.new($log)
+while s = $client.gets do
+  s.strip!
+  puts s
+end
