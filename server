@@ -5,14 +5,20 @@ require 'socket'
 
 $log = ARGV.shift or fail "Specify the intended log socket as the only argument."
 
+$write_statistics = true
+$statistics_file = $log + ".stat"
+
 $queue = Queue.new
 $clients = []
+$count = 0
+$startup = Time.now.to_i
 
 Thread.abort_on_exception = true
 
 if FileTest.exists?($log)
   $stderr.puts "WARN: target log socket exists."
   File.unlink($log)
+  File.unlink($statistics_file)
 end
 
 $server = UNIXServer.new($log)
@@ -20,8 +26,38 @@ File.chmod(0700, $log)
 
 trap "INT", proc {
   File.unlink($log)
+  File.unlink($statistics_file)
   exit(0)
 }
+
+Thread.new {
+  # alpha = 0.0125
+  alpha = 0.05
+  eventsLastSecSmoothed = -1
+  eventsLastSec = -1
+  eventsPrev = -1
+
+  iteration = -1
+
+  loop do
+    iteration += 1
+
+    eventsLastSec = $count - eventsPrev
+    eventsPrev = $count
+
+    eventsLastSecSmoothed = eventsLastSec if eventsLastSecSmoothed == -1
+    eventsLastSecSmoothed = alpha * eventsLastSec +
+      (1.0 - alpha) * eventsLastSecSmoothed
+
+    # puts "events/sec: %d, global cound: %d" % [eventsLastSecSmoothed, $count]
+    File.open($statistics_file, "w") {|f|
+      f.puts "total %d" % [$count]
+      f.puts "lps_smoothed %d" % [eventsLastSecSmoothed]
+      f.puts "since %d" % [$startup]
+    } if iteration % 10 == 0
+    sleep(1)
+  end
+} if $write_statistics
 
 Thread.new {
   loop do
@@ -45,5 +81,6 @@ Thread.new {
 }
 
 while s = $stdin.gets do
+  $count += 1
   $queue.push s.strip
 end
