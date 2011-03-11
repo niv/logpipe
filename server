@@ -1,9 +1,11 @@
 #!/usr/bin/ruby
 
+require 'thread'
 require 'socket'
 
 $log = ARGV.shift or fail "Specify the intended log socket as the only argument."
 
+$queue = Queue.new
 $clients = []
 
 Thread.abort_on_exception = true
@@ -27,14 +29,21 @@ Thread.new {
   end
 }
 
-while s = $stdin.gets do
-  s.strip!
-  $clients.each {|c|
-    begin
-      c.puts(s)
-    rescue => e
-      $clients.delete(c)
-      next
+Thread.new {
+  loop do
+    while s = $queue.pop
+      $clients.each {|c|
+        begin
+          c.puts(s)
+        rescue => e
+          $clients.delete(c)
+          next
+        end
+      }
     end
-  }
+  end
+}
+
+while s = $stdin.gets do
+  $queue.push s.strip
 end
